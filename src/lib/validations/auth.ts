@@ -29,10 +29,10 @@ export const registerSchema = yup.object({
       'Password must contain at least one uppercase letter, one lowercase letter, and one number'
     )
     .required('Password is required'),
-  confirmPassword: yup
-    .string()
-    .oneOf([yup.ref('password')], 'Passwords must match')
-    .required('Please confirm your password'),
+//   confirmPassword: yup
+//     .string()
+//     .oneOf([yup.ref('password')], 'Passwords must match')
+//     .required('Please confirm your password'),
   role: yup
     .string()
     .oneOf(['buyer', 'seller'], 'Please select a valid role')

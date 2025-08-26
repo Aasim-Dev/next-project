@@ -1,16 +1,55 @@
-// (auth)/signup/page.tsx
 "use client";
 
 import React, { useState } from "react";
+import { useRouter } from "next/navigation";
 
 export default function RegisterPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [role, setRole] = useState<"buyer" | "seller">("buyer"); // default buyer
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const router = useRouter();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("Sign up with:", { name, email, password });
+    setError(null);
+    setSuccess(null);
+    setLoading(true);
+
+    try {
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name,
+          email,
+          password,
+          role, // 👈 comes from radio button
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || "Something went wrong");
+      } else {
+        setSuccess("User registered successfully!");
+        // redirect to login after short delay
+        setTimeout(() => {
+          router.push("/login");
+        }, 1500);
+      }
+    } catch (err) {
+      console.error("Register error:", err);
+      setError("Network error. Try again later.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -41,13 +80,43 @@ export default function RegisterPage() {
           onChange={(e) => setPassword(e.target.value)}
           required
         />
+
+        {/* Role selection */}
+        <div className="flex flex-col space-y-2">
+          <span className="font-medium">Choose Role:</span>
+          <label className="flex items-center space-x-2">
+            <input
+              type="radio"
+              value="buyer"
+              checked={role === "buyer"}
+              onChange={() => setRole("buyer")}
+              className="h-4 w-4"
+            />
+            <span>Buyer (Hire photographers)</span>
+          </label>
+          <label className="flex items-center space-x-2">
+            <input
+              type="radio"
+              value="seller"
+              checked={role === "seller"}
+              onChange={() => setRole("seller")}
+              className="h-4 w-4"
+            />
+            <span>Seller (Photographer)</span>
+          </label>
+        </div>
+
         <button
           type="submit"
+          disabled={loading}
           className="w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700"
         >
-          Sign Up
+          {loading ? "Signing up..." : "Sign Up"}
         </button>
       </form>
+
+      {error && <p className="mt-4 text-red-500 text-center">{error}</p>}
+      {success && <p className="mt-4 text-green-600 text-center">{success}</p>}
     </>
   );
 }
