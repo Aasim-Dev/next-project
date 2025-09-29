@@ -1,68 +1,85 @@
-import { withAuth } from 'next-auth/middleware';
-import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import jwt from 'jsonwebtoken';
 
-export default withAuth(
-  function middleware(req) {
-    const token = req.nextauth.token;
-    const isAuth = !!token;
-    const isAuthPage = req.nextUrl.pathname.startsWith('/auth');
-    const isDashboard = req.nextUrl.pathname.startsWith('/dashboard');
-    const isApiRoute = req.nextUrl.pathname.startsWith('/api');
-    
-    // Redirect authenticated users away from auth pages
-    if (isAuthPage && isAuth) {
-      return NextResponse.redirect(new URL('/dashboard', req.url));
+interface TokenPayload {
+  userId: string;
+  role: 'buyer' | 'seller' | 'admin';
+}
+
+export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+  
+  // Get token from cookies
+  const token = request.cookies.get('token')?.value;
+  
+  // Public routes that don't require authentication
+  const publicRoutes = ['/', '/login', '/register'];
+  const isPublicRoute = publicRoutes.includes(pathname);
+  
+  // Auth routes that authenticated users shouldn't access
+  const authRoutes = ['/login', '/register'];
+  const isAuthRoute = authRoutes.includes(pathname);
+  
+  // If accessing auth routes and already authenticated, redirect to dashboard
+  if (isAuthRoute && token) {
+    try {
+      jwt.verify(token, process.env.JWT_SECRET!);
+      return NextResponse.redirect(new URL('/dashboard', request.url));
+    } catch (error) {
+      // Invalid token, allow access to auth routes
+      return NextResponse.next();
     }
-    
-    // Redirect unauthenticated users away from protected pages
-    if (isDashboard && !isAuth) {
-      return NextResponse.redirect(new URL('/auth/signin', req.url));
-    }
-    
-    // Role-based access control
-    if (isAuth && token) {
-      const userRole = token.role as string;
-      
-      // Admin only routes
-      if (req.nextUrl.pathname.startsWith('/admin') && userRole !== 'admin') {
-        return NextResponse.redirect(new URL('/dashboard', req.url));
-      }
-      
-      // Photographer only routes
-      if (req.nextUrl.pathname.startsWith('/dashboard/galleries') && userRole !== 'seller') {
-        return NextResponse.redirect(new URL('/dashboard', req.url));
-      }
-    }
-    
-    return NextResponse.next();
-  },
-  {
-    callbacks: {
-      authorized: ({ token, req }) => {
-        // Allow access to public pages
-        if (req.nextUrl.pathname.startsWith('/api/auth') ||
-            req.nextUrl.pathname === '/' ||
-            req.nextUrl.pathname.startsWith('/photographers') ||
-            req.nextUrl.pathname.startsWith('/galleries') ||
-            req.nextUrl.pathname.startsWith('/auth')) {
-          return true;
-        }
-        
-        // Require authentication for protected routes
-        return !!token;
-      },
-    },
   }
-);
+  
+  // If accessing public routes, allow
+  if (isPublicRoute) {
+    return NextResponse.next();
+  }
+  
+  // Protected routes require authentication
+  if (!token) {
+    return NextResponse.redirect(new URL('/login', request.url));
+  }
+  
+  // Verify token and check role-based access
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as TokenPayload;
+    const userRole = decoded.role;
+    
+    // Role-based route protection
+    
+    // Admin-only routes
+    if (pathname.startsWith('/dashboard/users') ||
+        pathname.startsWith('/dashboard/photographers') && !pathname.includes('/dashboard/photographers/')) {
+      if (userRole !== 'admin') {
+        return NextResponse.redirect(new URL('/dashboard', request.url));
+      }
+    }
+    
+    // Seller-only routes
+    if (pathname.startsWith('/dashboard/portfolio') ||
+        pathname.startsWith('/dashboard/earnings') ||
+        pathname.startsWith('/dashboard/profile')) {
+      if (userRole !== 'seller') {
+        return NextResponse.redirect(new URL('/dashboard', request.url));
+      }
+    }
+    
+    // Allow access if all checks pass
+    return NextResponse.next();
+    
+  } catch (error) {
+    // Invalid token, redirect to login
+    const response = NextResponse.redirect(new URL('/login', request.url));
+    response.cookies.delete('token');
+    return response;
+  }
+}
 
 export const config = {
   matcher: [
     '/dashboard/:path*',
-    '/auth/:path*',
-    '/admin/:path*',
-    '/api/users/:path*',
-    '/api/bookings/:path*',
-    '/api/galleries/:path*',
+    '/login',
+    '/register',
   ],
 };
