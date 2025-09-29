@@ -62,7 +62,7 @@ export default function RegisterPage() {
           className="w-full px-4 py-2 border rounded-lg"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          required
+          
         />
         <input
           type="email"
@@ -70,7 +70,7 @@ export default function RegisterPage() {
           className="w-full px-4 py-2 border rounded-lg"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          required
+          
         />
         <input
           type="password"
@@ -78,7 +78,7 @@ export default function RegisterPage() {
           className="w-full px-4 py-2 border rounded-lg"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          required
+          
         />
 
         {/* Role selection */}
