@@ -1,19 +1,24 @@
-// app/buyer/marketplace/page.tsx
+// src/app/buyer/marketplace/page.tsx
 "use client";
 
 import { useState, useEffect } from "react";
 import { Search, Filter, Star, MapPin, DollarSign, ShoppingCart } from "lucide-react";
 
 interface Product {
-  id: string;
+  _id: string;
   title: string;
-  seller: string;
+  description: string;
   price: number;
-  rating: number;
-  reviews: number;
   category: string;
-  image: string;
+  images: { url: string }[];
   location: string;
+  rating: number;
+  reviewCount: number;
+  seller: {
+    _id: string;
+    name: string;
+    email: string;
+  };
 }
 
 export default function MarketplacePage() {
@@ -21,84 +26,30 @@ export default function MarketplacePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [loading, setLoading] = useState(true);
+  const [addingToCart, setAddingToCart] = useState<string | null>(null);
 
   useEffect(() => {
     fetchProducts();
-  }, []);
+  }, [selectedCategory, searchQuery]);
 
   const fetchProducts = async () => {
     try {
-      // TODO: Replace with actual API call
-      const mockProducts: Product[] = [
-        {
-          id: "1",
-          title: "Professional Wedding Photography Package",
-          seller: "John Photography",
-          price: 1200,
-          rating: 4.9,
-          reviews: 45,
-          category: "wedding",
-          image: "📸",
-          location: "New York, NY"
-        },
-        {
-          id: "2",
-          title: "Portrait Photography Session - Premium",
-          seller: "Sarah Studios",
-          price: 450,
-          rating: 4.8,
-          reviews: 32,
-          category: "portrait",
-          image: "🎭",
-          location: "Los Angeles, CA"
-        },
-        {
-          id: "3",
-          title: "Corporate Event Photography",
-          seller: "Mike Captures",
-          price: 800,
-          rating: 4.7,
-          reviews: 28,
-          category: "event",
-          image: "🎉",
-          location: "Chicago, IL"
-        },
-        {
-          id: "4",
-          title: "Product Photography Package",
-          seller: "Emma Visuals",
-          price: 350,
-          rating: 4.9,
-          reviews: 51,
-          category: "product",
-          image: "📦",
-          location: "San Francisco, CA"
-        },
-        {
-          id: "5",
-          title: "Real Estate Photography",
-          seller: "David Lens",
-          price: 280,
-          rating: 4.6,
-          reviews: 19,
-          category: "real-estate",
-          image: "🏠",
-          location: "Miami, FL"
-        },
-        {
-          id: "6",
-          title: "Fashion Photography Shoot",
-          seller: "Lisa Frame",
-          price: 950,
-          rating: 5.0,
-          reviews: 42,
-          category: "fashion",
-          image: "👗",
-          location: "New York, NY"
-        },
-      ];
+      setLoading(true);
+      const params = new URLSearchParams();
       
-      setProducts(mockProducts);
+      if (selectedCategory !== 'all') {
+        params.append('category', selectedCategory);
+      }
+      if (searchQuery) {
+        params.append('search', searchQuery);
+      }
+
+      const res = await fetch(`/api/products?${params.toString()}`);
+      const data = await res.json();
+
+      if (data.success) {
+        setProducts(data.data.products);
+      }
     } catch (error) {
       console.error("Failed to fetch products:", error);
     } finally {
@@ -114,18 +65,31 @@ export default function MarketplacePage() {
     { value: "product", label: "Product" },
     { value: "real-estate", label: "Real Estate" },
     { value: "fashion", label: "Fashion" },
+    { value: "commercial", label: "Commercial" },
   ];
 
-  const filteredProducts = products.filter(product => {
-    const matchesSearch = product.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         product.seller.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = selectedCategory === "all" || product.category === selectedCategory;
-    return matchesSearch && matchesCategory;
-  });
+  const handleAddToCart = async (productId: string) => {
+    try {
+      setAddingToCart(productId);
+      const res = await fetch('/api/cart', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productId, quantity: 1 }),
+      });
 
-  const handleAddToCart = (productId: string) => {
-    // TODO: Implement add to cart functionality
-    alert(`Product ${productId} added to cart!`);
+      const data = await res.json();
+
+      if (data.success) {
+        alert('Product added to cart successfully!');
+      } else {
+        alert(data.error || 'Failed to add to cart');
+      }
+    } catch (error) {
+      console.error('Add to cart error:', error);
+      alert('Failed to add to cart');
+    } finally {
+      setAddingToCart(null);
+    }
   };
 
   if (loading) {
@@ -182,16 +146,17 @@ export default function MarketplacePage() {
 
       {/* Products Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredProducts.map(product => (
+        {products.map(product => (
           <ProductCard
-            key={product.id}
+            key={product._id}
             product={product}
             onAddToCart={handleAddToCart}
+            isAdding={addingToCart === product._id}
           />
         ))}
       </div>
 
-      {filteredProducts.length === 0 && (
+      {products.length === 0 && (
         <div className="text-center py-12">
           <p className="text-gray-500 text-lg">No products found matching your criteria</p>
         </div>
@@ -200,12 +165,24 @@ export default function MarketplacePage() {
   );
 }
 
-function ProductCard({ product, onAddToCart }: { product: Product; onAddToCart: (id: string) => void }) {
+function ProductCard({ product, onAddToCart, isAdding }: { 
+  product: Product; 
+  onAddToCart: (id: string) => void;
+  isAdding: boolean;
+}) {
+  const imageUrl = product.images && product.images.length > 0 
+    ? product.images[0].url 
+    : '/placeholder-image.jpg';
+
   return (
     <div className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow overflow-hidden">
       {/* Product Image */}
-      <div className="h-48 bg-gradient-to-br from-blue-100 to-purple-100 flex items-center justify-center">
-        <span className="text-6xl">{product.image}</span>
+      <div className="h-48 bg-gradient-to-br from-blue-100 to-purple-100 flex items-center justify-center overflow-hidden">
+        {imageUrl !== '/placeholder-image.jpg' ? (
+          <img src={imageUrl} alt={product.title} className="w-full h-full object-cover" />
+        ) : (
+          <span className="text-6xl">📸</span>
+        )}
       </div>
 
       {/* Product Details */}
@@ -214,13 +191,13 @@ function ProductCard({ product, onAddToCart }: { product: Product; onAddToCart: 
           {product.title}
         </h3>
         
-        <p className="text-sm text-gray-600 mb-3">by {product.seller}</p>
+        <p className="text-sm text-gray-600 mb-3">by {product.seller.name}</p>
 
         <div className="flex items-center space-x-4 mb-3">
           <div className="flex items-center space-x-1">
             <Star className="text-yellow-400 fill-current" size={16} />
-            <span className="text-sm font-medium text-gray-700">{product.rating}</span>
-            <span className="text-sm text-gray-500">({product.reviews})</span>
+            <span className="text-sm font-medium text-gray-700">{product.rating.toFixed(1)}</span>
+            <span className="text-sm text-gray-500">({product.reviewCount})</span>
           </div>
           <div className="flex items-center space-x-1 text-gray-500">
             <MapPin size={14} />
@@ -234,11 +211,12 @@ function ProductCard({ product, onAddToCart }: { product: Product; onAddToCart: 
             <span className="text-2xl font-bold text-gray-900">{product.price}</span>
           </div>
           <button
-            onClick={() => onAddToCart(product.id)}
-            className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+            onClick={() => onAddToCart(product._id)}
+            disabled={isAdding}
+            className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:bg-blue-300"
           >
             <ShoppingCart size={18} />
-            <span>Add</span>
+            <span>{isAdding ? 'Adding...' : 'Add'}</span>
           </button>
         </div>
       </div>

@@ -1,22 +1,22 @@
-// src/app/buyer/layout.tsx
+// app/seller/layout.tsx
 "use client";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { 
-  Home, ShoppingBag, ShoppingCart, 
-  Settings, LogOut, Menu, X, Store
+  Home, Package, ShoppingBag, Camera,
+  Settings, LogOut, Menu, X, PlusCircle
 } from "lucide-react";
 
 interface User {
   id: string;
   name: string;
   email: string;
-  role: "buyer";
+  role: "seller";
 }
 
-export default function BuyerLayout({
+export default function SellerLayout({
   children,
 }: {
   children: React.ReactNode;
@@ -24,56 +24,30 @@ export default function BuyerLayout({
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [cartCount, setCartCount] = useState(0);
   const router = useRouter();
 
   useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const res = await fetch("/api/auth/me", {
-            method: "GET",
-            credentials: "include",  
-        });
-        if (!res.ok) {
-          router.push("/login");
-          return;
-        }
+    fetchUser();
+  }, []);
 
+  const fetchUser = async () => {
+    try {
+      const res = await fetch("/api/auth/me");
+      if (res.ok) {
         const data = await res.json();
-        const user = data.data?.user || data.user;
-
-        if (user?.role !== "buyer") {
+        if (data.data.user.role !== "seller") {
           router.push("/");
           return;
         }
-
-        setUser(user);
-      } catch (err) {
-        console.error("Failed to fetch user:", err);
+        setUser(data.data.user);
+      } else {
         router.push("/login");
-      } finally {
-        setLoading(false);
       }
-    };
-
-    checkAuth();
-    fetchCartCount();
-  }, [router]);
-
-  const fetchCartCount = async () => {
-    try {
-        const res = await fetch("/api/cart/count", { method: "GET" });
-        const data = await res.json();
-
-        if (data.success) {
-        setCartCount(data.data.count == 0 ? '' : data.data.count);
-        } else {
-        console.error("Failed to fetch cart count:", data.error);
-        setCartCount(0);
-        }
     } catch (error) {
-        console.error("Error in fetching the cart count:", error);
-        setCartCount(0);
+      console.error("Failed to fetch user:", error);
+      router.push("/login");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -97,10 +71,10 @@ export default function BuyerLayout({
   if (!user) return null;
 
   const navItems = [
-    { href: "/buyer/dashboard", icon: Home, label: "Dashboard" },
-    { href: "/buyer/marketplace", icon: Store, label: "Marketplace" },
-    { href: "/buyer/cart", icon: ShoppingCart, label: "Cart", badge: cartCount },
-    { href: "/buyer/orders", icon: ShoppingBag, label: "My Orders" },
+    { href: "/seller/dashboard", icon: Home, label: "Dashboard" },
+    { href: "/seller/products", icon: Camera, label: "My Products" },
+    { href: "/seller/orders", icon: ShoppingBag, label: "Orders" },
+    { href: "/seller/add-product", icon: PlusCircle, label: "Add Product" },
   ];
 
   return (
@@ -117,8 +91,8 @@ export default function BuyerLayout({
               >
                 <Menu size={24} />
               </button>
-              <Link href="/buyer/dashboard" className="text-2xl font-bold text-blue-600">
-                📸 PhotoHire
+              <Link href="/seller/dashboard" className="text-2xl font-bold text-purple-600">
+                📸 PhotoHire Seller
               </Link>
             </div>
 
@@ -128,15 +102,10 @@ export default function BuyerLayout({
                 <Link
                   key={item.href}
                   href={item.href}
-                  className="flex items-center space-x-2 text-gray-700 hover:text-blue-600 transition-colors relative"
+                  className="flex items-center space-x-2 text-gray-700 hover:text-purple-600 transition-colors"
                 >
                   <item.icon size={20} />
                   <span className="font-medium">{item.label}</span>
-                  {item.badge && item.badge > 0 && (
-                    <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                      {item.badge}
-                    </span>
-                  )}
                 </Link>
               ))}
             </div>
@@ -145,10 +114,10 @@ export default function BuyerLayout({
             <div className="flex items-center space-x-4">
               <div className="hidden md:block text-right">
                 <p className="text-sm font-medium text-gray-900">{user.name}</p>
-                <p className="text-xs text-gray-500">Buyer Account</p>
+                <p className="text-xs text-gray-500">Seller Account</p>
               </div>
-              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                <span className="text-blue-600 font-semibold">
+              <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
+                <span className="text-purple-600 font-semibold">
                   {user.name.charAt(0).toUpperCase()}
                 </span>
               </div>
@@ -185,18 +154,11 @@ export default function BuyerLayout({
                     <li key={item.href}>
                       <Link
                         href={item.href}
-                        className="flex items-center justify-between px-4 py-3 rounded-lg hover:bg-gray-100 transition-colors"
+                        className="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-gray-100 transition-colors"
                         onClick={() => setSidebarOpen(false)}
                       >
-                        <div className="flex items-center space-x-3">
-                          <item.icon size={20} />
-                          <span>{item.label}</span>
-                        </div>
-                        {item.badge && item.badge > 0 && (
-                          <span className="bg-red-500 text-white text-xs rounded-full px-2 py-1">
-                            {item.badge}
-                          </span>
-                        )}
+                        <item.icon size={20} />
+                        <span>{item.label}</span>
                       </Link>
                     </li>
                   ))}
@@ -204,7 +166,7 @@ export default function BuyerLayout({
               </nav>
               <div className="p-4 border-t">
                 <Link
-                  href="/buyer/settings"
+                  href="/seller/settings"
                   className="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-gray-100 transition-colors mb-2"
                 >
                   <Settings size={20} />

@@ -36,6 +36,7 @@ export default function LoginPage() {
         const isVerified = data.data.user.isVerified;
         if(!isVerified){
           setError("Not Verified");
+          return false;
         }
 
         switch (userRole) {
