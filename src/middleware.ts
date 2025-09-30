@@ -1,3 +1,4 @@
+// middleware.ts
 import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
 
@@ -7,6 +8,7 @@ interface TokenPayload {
 }
 
 export async function middleware(request: NextRequest) {
+  console.log('Middleware triggered:', request.nextUrl.pathname);
   const { pathname } = request.nextUrl;
   
   // Get token from cookies
@@ -14,17 +16,23 @@ export async function middleware(request: NextRequest) {
   
   // Public routes that don't require authentication
   const publicRoutes = ['/', '/login', '/register'];
-  const isPublicRoute = publicRoutes.includes(pathname);
+  const isPublicRoute = publicRoutes.some(route => pathname === route);
   
   // Auth routes that authenticated users shouldn't access
   const authRoutes = ['/login', '/register'];
   const isAuthRoute = authRoutes.includes(pathname);
+  console.log(isAuthRoute + " " + token);
   
-  // If accessing auth routes and already authenticated, redirect to dashboard
-  if (isAuthRoute && token) {
+  // If accessing auth routes and already authenticated, redirect to appropriate dashboard
+  if (token) { //isAuthRoute &&
     try {
-      jwt.verify(token, process.env.JWT_SECRET!);
-      return NextResponse.redirect(new URL('/dashboard', request.url));
+      const decoded = jwt.verify(token, process.env.JWT_SECRET!) as TokenPayload;
+      const redirectMap = {
+        admin: '/admin/dashboard',
+        seller: '/seller/dashboard',
+        buyer: '/buyer/dashboard',
+      };
+      return NextResponse.redirect(new URL(redirectMap[decoded.role], request.url));
     } catch (error) {
       // Invalid token, allow access to auth routes
       return NextResponse.next();
@@ -49,20 +57,34 @@ export async function middleware(request: NextRequest) {
     // Role-based route protection
     
     // Admin-only routes
-    if (pathname.startsWith('/dashboard/users') ||
-        pathname.startsWith('/dashboard/photographers') && !pathname.includes('/dashboard/photographers/')) {
+    if (pathname.startsWith('/admin')) {
       if (userRole !== 'admin') {
-        return NextResponse.redirect(new URL('/dashboard', request.url));
+        return NextResponse.redirect(new URL('/unauthorized', request.url));
       }
     }
     
     // Seller-only routes
-    if (pathname.startsWith('/dashboard/portfolio') ||
-        pathname.startsWith('/dashboard/earnings') ||
-        pathname.startsWith('/dashboard/profile')) {
+    if (pathname.startsWith('/seller')) {
       if (userRole !== 'seller') {
-        return NextResponse.redirect(new URL('/dashboard', request.url));
+        return NextResponse.redirect(new URL('/unauthorized', request.url));
       }
+    }
+    
+    // Buyer-only routes
+    if (pathname.startsWith('/buyer')) {
+      if (userRole !== 'buyer') {
+        return NextResponse.redirect(new URL('/unauthorized', request.url));
+      }
+    }
+    
+    // Old /dashboard route - redirect to role-specific dashboard
+    if (pathname === '/dashboard' || pathname.startsWith('/dashboard/')) {
+      const redirectMap = {
+        admin: '/admin/dashboard',
+        seller: '/seller/dashboard',
+        buyer: '/buyer/dashboard',
+      };
+      return NextResponse.redirect(new URL(redirectMap[userRole], request.url));
     }
     
     // Allow access if all checks pass
@@ -78,6 +100,9 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
+    '/admin/:path*',
+    '/seller/:path*',
+    '/buyer/:path*',
     '/dashboard/:path*',
     '/login',
     '/register',

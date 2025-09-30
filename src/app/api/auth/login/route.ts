@@ -7,10 +7,10 @@ import jwt from 'jsonwebtoken';
 export async function POST(request: NextRequest) {
   try {
     await connectDB();
-    
+
     const body = await request.json();
-    
-    // Validate input
+
+    // ✅ Validate input
     try {
       await loginSchema.validate(body);
     } catch (validationError: any) {
@@ -19,10 +19,10 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-    
+
     const { email, password } = body;
-    
-    // Find user and include password for comparison
+
+    // ✅ Find user
     const user = await User.findOne({ email }).select('+password');
     if (!user) {
       return NextResponse.json(
@@ -30,8 +30,8 @@ export async function POST(request: NextRequest) {
         { status: 401 }
       );
     }
-    
-    // Compare password
+
+    // ✅ Check password
     const isPasswordValid = await user.comparePassword(password);
     if (!isPasswordValid) {
       return NextResponse.json(
@@ -39,15 +39,19 @@ export async function POST(request: NextRequest) {
         { status: 401 }
       );
     }
-    
-    // Generate JWT token
+
+    // ✅ Generate JWT
     const token = jwt.sign(
-      { userId: user._id, role: user.role },
+      {
+        userId: user._id,
+        role: user.role,
+        isVerified: user.isVerified, 
+      },
       process.env.JWT_SECRET!,
-      { expiresIn: '7d' }
+      { expiresIn: '1d' }
     );
-    
-    // Set HTTP-only cookie
+
+    // ✅ Create response
     const response = NextResponse.json(
       {
         success: true,
@@ -59,22 +63,22 @@ export async function POST(request: NextRequest) {
             email: user.email,
             role: user.role,
             isVerified: user.isVerified,
-          }
-        }
+          },
+        },
       },
       { status: 200 }
     );
-    
+
+    // ✅ Cookie settings
     response.cookies.set('token', token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: process.env.NODE_ENV === 'production' ? true : false, 
       sameSite: 'lax',
       maxAge: 7 * 24 * 60 * 60, // 7 days
       path: '/',
     });
-    
+
     return response;
-    
   } catch (error: any) {
     console.error('Login error:', error);
     return NextResponse.json(
