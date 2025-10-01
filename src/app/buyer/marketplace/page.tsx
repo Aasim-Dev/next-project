@@ -2,7 +2,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, Filter, Star, MapPin, DollarSign, ShoppingCart } from "lucide-react";
+import { Search, Filter, Star, MapPin, DollarSign, ShoppingCart, Check } from "lucide-react";
+import { useCart } from "@/context/CartContext";
 
 interface Product {
   _id: string;
@@ -26,12 +27,11 @@ export default function MarketplacePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [loading, setLoading] = useState(true);
-  const [addingToCart, setAddingToCart] = useState<string | null>(null);
-  const [cartCount, setCartCount] = useState(0);
+  const [processingItem, setProcessingItem] = useState<string | null>(null);
+  const { cartItems, addToCartItems, removeFromCartItems, isInCart, refreshCartCount } = useCart();
 
   useEffect(() => {
     fetchProducts();
-    fetchCartCount();
   }, [selectedCategory, searchQuery]);
 
   const fetchProducts = async () => {
@@ -48,7 +48,7 @@ export default function MarketplacePage() {
 
       const res = await fetch(`/api/product?${params.toString()}`);
       const data = await res.json();
-      console.log(data.data.products);
+      
       if (data.success) {
         setProducts(data.data);
       }
@@ -58,19 +58,6 @@ export default function MarketplacePage() {
       setLoading(false);
     }
   };
-
-    const fetchCartCount = async () => {
-        try {
-            const res = await fetch('/api/cart');
-            const data = await res.json();
-            console.log(data.data.items.length);
-            if (data.success && data.data?.items) {
-            setCartCount(data.data.items.length);
-            }
-        } catch (error) {
-            console.error('Failed to fetch cart count:', error);
-        }
-    };
 
   const categories = [
     { value: "all", label: "All Categories" },
@@ -83,28 +70,51 @@ export default function MarketplacePage() {
     { value: "commercial", label: "Commercial" },
   ];
 
-  const handleAddToCart = async (productId: string) => {
+  const handleToggleCart = async (productId: string) => {
+    const inCart = isInCart(productId);
+    
     try {
-      setAddingToCart(productId);
-      const res = await fetch('/api/cart', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ productId, quantity: 1 }),
-      });
+      setProcessingItem(productId);
 
-      const data = await res.json();
+      if (inCart) {
+        // Remove from cart
+        const res = await fetch(`/api/cart?productId=${productId}`, {
+          method: 'DELETE',
+        });
 
-      if (data.success) {
-        alert('Product added to cart successfully!');
-        setCartCount(prev => prev + 1);
+        const data = await res.json();
+
+        if (data.success) {
+          removeFromCartItems(productId);
+          alert('Product removed from cart');
+        } else {
+          alert(data.error || 'Failed to remove from cart');
+        }
       } else {
-        alert(data.error || 'Failed to add to cart');
+        // Add to cart
+        const res = await fetch('/api/cart', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ productId, quantity: 1 }),
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+          addToCartItems(productId);
+          alert('Product added to cart successfully!');
+        } else {
+          alert(data.error || 'Failed to add to cart');
+        }
       }
+      
+      // Refresh cart count from server to ensure sync
+      await refreshCartCount();
     } catch (error) {
-      console.error('Add to cart error:', error);
-      alert('Failed to add to cart');
+      console.error('Cart operation error:', error);
+      alert('Failed to update cart');
     } finally {
-      setAddingToCart(null);
+      setProcessingItem(null);
     }
   };
 
@@ -166,8 +176,9 @@ export default function MarketplacePage() {
           <ProductCard
             key={product._id}
             product={product}
-            onAddToCart={handleAddToCart}
-            isAdding={addingToCart === product._id}
+            onToggleCart={handleToggleCart}
+            isProcessing={processingItem === product._id}
+            isInCart={isInCart(product._id)}
           />
         ))}
       </div>
@@ -181,10 +192,16 @@ export default function MarketplacePage() {
   );
 }
 
-function ProductCard({ product, onAddToCart, isAdding }: { 
+function ProductCard({ 
+  product, 
+  onToggleCart, 
+  isProcessing,
+  isInCart 
+}: { 
   product: Product; 
-  onAddToCart: (id: string) => void;
-  isAdding: boolean;
+  onToggleCart: (id: string) => void;
+  isProcessing: boolean;
+  isInCart: boolean;
 }) {
   const imageUrl = product.images && product.images.length > 0 
     ? product.images[0].url 
@@ -193,11 +210,17 @@ function ProductCard({ product, onAddToCart, isAdding }: {
   return (
     <div className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow overflow-hidden">
       {/* Product Image */}
-      <div className="h-48 bg-gradient-to-br from-blue-100 to-purple-100 flex items-center justify-center overflow-hidden">
+      <div className="h-48 bg-gradient-to-br from-blue-100 to-purple-100 flex items-center justify-center overflow-hidden relative">
         {imageUrl !== '/placeholder-image.jpg' ? (
           <img src={imageUrl} alt={product.title} className="w-full h-full object-cover" />
         ) : (
           <span className="text-6xl">📸</span>
+        )}
+        {isInCart && (
+          <div className="absolute top-2 right-2 bg-green-500 text-white px-3 py-1 rounded-full text-xs font-medium flex items-center space-x-1">
+            <Check size={14} />
+            <span>In Cart</span>
+          </div>
         )}
       </div>
 
@@ -227,12 +250,25 @@ function ProductCard({ product, onAddToCart, isAdding }: {
             <span className="text-2xl font-bold text-gray-900">{product.price}</span>
           </div>
           <button
-            onClick={() => onAddToCart(product._id)}
-            disabled={isAdding}
-            className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:bg-blue-300"
+            onClick={() => onToggleCart(product._id)}
+            disabled={isProcessing}
+            className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors disabled:opacity-50 ${
+              isInCart 
+                ? 'bg-red-600 hover:bg-red-700 text-white' 
+                : 'bg-blue-600 hover:bg-blue-700 text-white'
+            }`}
           >
-            <ShoppingCart size={18} />
-            <span>{isAdding ? 'Adding...' : 'Add'}</span>
+            {isInCart ? (
+              <>
+                <Check size={18} />
+                <span>{isProcessing ? 'Removing...' : 'Remove'}</span>
+              </>
+            ) : (
+              <>
+                <ShoppingCart size={18} />
+                <span>{isProcessing ? 'Adding...' : 'Add'}</span>
+              </>
+            )}
           </button>
         </div>
       </div>

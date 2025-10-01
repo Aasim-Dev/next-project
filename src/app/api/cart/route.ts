@@ -171,22 +171,25 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // const item = cart.items.find(item => item.product.toString() === productId);
-    // if (!item) {
-    //   return NextResponse.json(
-    //     { success: false, error: 'Product not in cart' },
-    //     { status: 404 }
-    //   );
-    // }
+    const item = cart.items.find(
+        (item: { product: any; quantity: number }) =>
+            item.product.toString() === productId
+        );
+    if (!item) {
+      return NextResponse.json(
+        { success: false, error: 'Product not in cart' },
+        { status: 404 }
+      );
+    }
 
-    // if (quantity <= 0) {
-    //   // Remove item if quantity is 0 or less
-    //     cart.items = cart.items.filter((item: { product: any }) =>
-    //         item.product.toString() !== productId
-    //     );
-    // } else {
-    //   item.quantity = quantity;
-    // }
+    if (quantity <= 0) {
+      // Remove item if quantity is 0 or less
+        cart.items = cart.items.filter((item: { product: any }) =>
+            item.product.toString() !== productId
+        );
+    } else {
+      item.quantity = quantity;
+    }
 
     await cart.save();
 
@@ -249,7 +252,11 @@ export async function DELETE(request: NextRequest) {
     cart.items = cart.items.filter((item: { product: any }) =>
         item.product.toString() !== productId
     );
-    await cart.save();
+    if (cart.items.length === 0) {
+        await Cart.deleteOne({ _id: cart._id });
+    } else {
+        await cart.save();
+    }
 
     const updatedCart = await Cart.findOne({ user: decoded.userId })
       .populate({

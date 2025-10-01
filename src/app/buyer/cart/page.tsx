@@ -4,6 +4,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ShoppingCart, Trash2, Plus, Minus, ArrowRight } from "lucide-react";
+import { useCart } from "@/context/CartContext";
 
 interface CartItem {
   _id: string;
@@ -31,6 +32,7 @@ export default function CartPage() {
   const [cart, setCart] = useState<Cart | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<string | null>(null);
+  const { refreshCartCount, removeFromCartItems } = useCart();
   const router = useRouter();
 
   useEffect(() => {
@@ -42,7 +44,7 @@ export default function CartPage() {
       setLoading(true);
       const res = await fetch('/api/cart');
       const data = await res.json();
-        console.log(data.data);
+      
       if (data.success) {
         setCart(data.data);
       }
@@ -65,7 +67,8 @@ export default function CartPage() {
       const data = await res.json();
 
       if (data.success) {
-        setCart(data.data.cart);
+        await fetchCart();
+        await refreshCartCount();
       } else {
         alert(data.error || 'Failed to update quantity');
       }
@@ -89,7 +92,9 @@ export default function CartPage() {
       const data = await res.json();
 
       if (data.success) {
-        setCart(data.data.cart);
+        removeFromCartItems(productId);
+        await fetchCart();
+        await refreshCartCount();
       } else {
         alert(data.error || 'Failed to remove item');
       }

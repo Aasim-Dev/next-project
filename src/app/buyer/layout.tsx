@@ -8,6 +8,7 @@ import {
   Home, ShoppingBag, ShoppingCart, 
   Settings, LogOut, Menu, X, Store
 } from "lucide-react";
+import { CartProvider, useCart } from "@/context/CartContext";
 
 interface User {
   id: string;
@@ -16,23 +17,19 @@ interface User {
   role: "buyer";
 }
 
-export default function BuyerLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+function BuyerLayoutContent({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [cartCount, setCartCount] = useState(0);
+  const { cartCount } = useCart();
   const router = useRouter();
 
   useEffect(() => {
     const checkAuth = async () => {
       try {
         const res = await fetch("/api/auth/me", {
-            method: "GET",
-            credentials: "include",  
+          method: "GET",
+          credentials: "include",  
         });
         if (!res.ok) {
           router.push("/login");
@@ -57,25 +54,7 @@ export default function BuyerLayout({
     };
 
     checkAuth();
-    fetchCartCount();
   }, [router]);
-
-  const fetchCartCount = async () => {
-    try {
-        const res = await fetch("/api/cart/count", { method: "GET" });
-        const data = await res.json();
-
-        if (data.success) {
-        setCartCount(data.data.count == 0 ? '' : data.data.count);
-        } else {
-        console.error("Failed to fetch cart count:", data.error);
-        setCartCount(0);
-        }
-    } catch (error) {
-        console.error("Error in fetching the cart count:", error);
-        setCartCount(0);
-    }
-  };
 
   const handleLogout = async () => {
     try {
@@ -132,7 +111,7 @@ export default function BuyerLayout({
                 >
                   <item.icon size={20} />
                   <span className="font-medium">{item.label}</span>
-                  {item.badge && item.badge > 0 && (
+                  {item.badge !== undefined && item.badge > 0 && (
                     <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
                       {item.badge}
                     </span>
@@ -192,7 +171,7 @@ export default function BuyerLayout({
                           <item.icon size={20} />
                           <span>{item.label}</span>
                         </div>
-                        {item.badge && item.badge > 0 && (
+                        {item.badge !== undefined && item.badge > 0 && (
                           <span className="bg-red-500 text-white text-xs rounded-full px-2 py-1">
                             {item.badge}
                           </span>
@@ -230,5 +209,13 @@ export default function BuyerLayout({
         </div>
       </main>
     </div>
+  );
+}
+
+export default function BuyerLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <CartProvider>
+      <BuyerLayoutContent>{children}</BuyerLayoutContent>
+    </CartProvider>
   );
 }
