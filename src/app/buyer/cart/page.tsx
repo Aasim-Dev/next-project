@@ -42,9 +42,9 @@ export default function CartPage() {
       setLoading(true);
       const res = await fetch('/api/cart');
       const data = await res.json();
-
+        console.log(data.data);
       if (data.success) {
-        setCart(data.data.cart);
+        setCart(data.data);
       }
     } catch (error) {
       console.error('Failed to fetch cart:', error);

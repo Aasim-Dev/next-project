@@ -31,7 +31,12 @@ export async function GET(request: NextRequest) {
       .lean();
 
     if (!cart) {
-      cart = { user: decoded.userId, items: [] };
+        cart = {
+            _id: undefined,
+            user: decoded.userId,
+            items: [],
+            __v: 0
+        } as any;
     }
 
     return NextResponse.json({
@@ -84,23 +89,30 @@ export async function POST(request: NextRequest) {
     let cart = await Cart.findOne({ user: decoded.userId });
 
     if (!cart) {
-      cart = await Cart.create({
-        user: decoded.userId,
-        items: [{ product: productId, quantity }],
-      });
+        cart = await Cart.create({
+            user: decoded.userId,
+            items: [{
+                product: productId,
+                quantity,
+                price: product.price,      
+                title: product.title,      
+                addedAt: new Date(),
+            }],
+        });
     } else {
-      // Check if product already in cart
-      const existingItem = cart.items.find(
-        item => item.product.toString() === productId
-      );
+        // Check if product already in cart
+        const existingItem = cart.items.find((item: { product: any; quantity: number }) =>
+            item.product.toString() === productId
+        );
 
-      if (existingItem) {
-        existingItem.quantity += quantity;
-      } else {
-        cart.items.push({ product: productId, quantity, addedAt: new Date() });
-      }
 
-      await cart.save();
+        if (existingItem) {
+            existingItem.quantity += quantity;
+        } else {
+            cart.items.push({ product: productId, quantity, addedAt: new Date() });
+        }
+
+        await cart.save();
     }
 
     // Populate and return updated cart
@@ -159,20 +171,22 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const item = cart.items.find(item => item.product.toString() === productId);
-    if (!item) {
-      return NextResponse.json(
-        { success: false, error: 'Product not in cart' },
-        { status: 404 }
-      );
-    }
+    // const item = cart.items.find(item => item.product.toString() === productId);
+    // if (!item) {
+    //   return NextResponse.json(
+    //     { success: false, error: 'Product not in cart' },
+    //     { status: 404 }
+    //   );
+    // }
 
-    if (quantity <= 0) {
-      // Remove item if quantity is 0 or less
-      cart.items = cart.items.filter(item => item.product.toString() !== productId);
-    } else {
-      item.quantity = quantity;
-    }
+    // if (quantity <= 0) {
+    //   // Remove item if quantity is 0 or less
+    //     cart.items = cart.items.filter((item: { product: any }) =>
+    //         item.product.toString() !== productId
+    //     );
+    // } else {
+    //   item.quantity = quantity;
+    // }
 
     await cart.save();
 
@@ -232,7 +246,9 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    cart.items = cart.items.filter(item => item.product.toString() !== productId);
+    cart.items = cart.items.filter((item: { product: any }) =>
+        item.product.toString() !== productId
+    );
     await cart.save();
 
     const updatedCart = await Cart.findOne({ user: decoded.userId })

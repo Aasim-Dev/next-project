@@ -27,9 +27,11 @@ export default function MarketplacePage() {
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [loading, setLoading] = useState(true);
   const [addingToCart, setAddingToCart] = useState<string | null>(null);
+  const [cartCount, setCartCount] = useState(0);
 
   useEffect(() => {
     fetchProducts();
+    fetchCartCount();
   }, [selectedCategory, searchQuery]);
 
   const fetchProducts = async () => {
@@ -44,11 +46,11 @@ export default function MarketplacePage() {
         params.append('search', searchQuery);
       }
 
-      const res = await fetch(`/api/products?${params.toString()}`);
+      const res = await fetch(`/api/product?${params.toString()}`);
       const data = await res.json();
-
+      console.log(data.data.products);
       if (data.success) {
-        setProducts(data.data.products);
+        setProducts(data.data);
       }
     } catch (error) {
       console.error("Failed to fetch products:", error);
@@ -56,6 +58,19 @@ export default function MarketplacePage() {
       setLoading(false);
     }
   };
+
+    const fetchCartCount = async () => {
+        try {
+            const res = await fetch('/api/cart');
+            const data = await res.json();
+            console.log(data.data.items.length);
+            if (data.success && data.data?.items) {
+            setCartCount(data.data.items.length);
+            }
+        } catch (error) {
+            console.error('Failed to fetch cart count:', error);
+        }
+    };
 
   const categories = [
     { value: "all", label: "All Categories" },
@@ -81,6 +96,7 @@ export default function MarketplacePage() {
 
       if (data.success) {
         alert('Product added to cart successfully!');
+        setCartCount(prev => prev + 1);
       } else {
         alert(data.error || 'Failed to add to cart');
       }
@@ -146,7 +162,7 @@ export default function MarketplacePage() {
 
       {/* Products Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {products.map(product => (
+        {products?.map(product => (
           <ProductCard
             key={product._id}
             product={product}
@@ -156,7 +172,7 @@ export default function MarketplacePage() {
         ))}
       </div>
 
-      {products.length === 0 && (
+      {products?.length === 0 && (
         <div className="text-center py-12">
           <p className="text-gray-500 text-lg">No products found matching your criteria</p>
         </div>

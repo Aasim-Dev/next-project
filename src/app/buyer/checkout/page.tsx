@@ -48,11 +48,11 @@ export default function CheckoutPage() {
       const data = await res.json();
 
       if (data.success) {
-        if (!data.data.cart || data.data.cart.items.length === 0) {
+        if (!data.data || data.data.items.length === 0) {
           router.push('/buyer/cart');
           return;
         }
-        setCart(data.data.cart);
+        setCart(data.data);
       }
     } catch (error) {
       console.error('Failed to fetch cart:', error);
