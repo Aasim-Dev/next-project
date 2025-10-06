@@ -1,275 +1,363 @@
-// app/seller/dashboard/page.tsx
+// src/app/seller/dashboard/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import {
+  Package,
+  DollarSign,
+  TrendingUp,
+  ShoppingBag,
+  Clock,
+  CheckCircle,
+  Eye,
+  Camera,
+  AlertCircle
+} from "lucide-react";
 import Link from "next/link";
-import { Camera, ShoppingBag, DollarSign, TrendingUp, Eye, Star, PlusCircle } from "lucide-react";
 
-interface SellerStats {
+interface DashboardStats {
   totalProducts: number;
+  activeProducts: number;
   totalOrders: number;
-  totalEarnings: number;
   pendingOrders: number;
   completedOrders: number;
-  profileViews: number;
-  averageRating: number;
+  totalRevenue: number;
+  monthlyRevenue: number;
+}
+
+interface RecentOrder {
+  _id: string;
+  orderId: string;
+  buyer: {
+    name: string;
+  };
+  totalAmount: number;
+  status: string;
+  createdAt: string;
+  items: Array<{
+    product: {
+      title: string;
+    };
+    quantity: number;
+  }>;
 }
 
 export default function SellerDashboard() {
-  const [stats, setStats] = useState<SellerStats>({
+  const [stats, setStats] = useState<DashboardStats>({
     totalProducts: 0,
+    activeProducts: 0,
     totalOrders: 0,
-    totalEarnings: 0,
     pendingOrders: 0,
     completedOrders: 0,
-    profileViews: 0,
-    averageRating: 0,
+    totalRevenue: 0,
+    monthlyRevenue: 0,
   });
+  const [recentOrders, setRecentOrders] = useState<RecentOrder[]>([]);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
   useEffect(() => {
-    fetchStats();
+    fetchDashboardData();
   }, []);
 
-  const fetchStats = async () => {
+  const fetchDashboardData = async () => {
     try {
-      // TODO: Replace with actual API call
-      setStats({
-        totalProducts: 15,
-        totalOrders: 87,
-        totalEarnings: 12450,
-        pendingOrders: 5,
-        completedOrders: 78,
-        profileViews: 1234,
-        averageRating: 4.8,
-      });
+      setLoading(true);
+
+      // Fetch user data to get seller ID
+      const userRes = await fetch("/api/auth/me");
+      const userData = await userRes.json();
+      const sellerId = userData.data.user.id;
+
+      // Fetch products
+      const productsRes = await fetch(`/api/product?sellerId=${sellerId}&status=all`);
+      const productsData = await productsRes.json();
+
+      // Fetch orders
+      const ordersRes = await fetch("/api/orders/seller");
+      const ordersData = await ordersRes.json();
+
+      if (productsData.success && ordersData.success) {
+        const products = productsData.data || [];
+        const orders = ordersData.data || [];
+
+        // Calculate stats
+        const totalRevenue = orders.reduce((sum: number, order: any) =>
+          sum + order.totalAmount, 0
+        );
+
+        const currentMonth = new Date().getMonth();
+        const monthlyRevenue = orders
+          .filter((order: any) => new Date(order.createdAt).getMonth() === currentMonth)
+          .reduce((sum: number, order: any) => sum + order.totalAmount, 0);
+
+        const pendingOrders = orders.filter((o: any) =>
+          o.status === 'pending'
+        ).length;
+
+        const completedOrders = orders.filter((o: any) =>
+          o.status === 'completed'
+        ).length;
+
+        const activeProducts = products.filter((p: any) => p.isActive).length;
+
+        setStats({
+          totalProducts: products.length,
+          activeProducts,
+          totalOrders: orders.length,
+          pendingOrders,
+          completedOrders,
+          totalRevenue,
+          monthlyRevenue,
+        });
+
+        // Set recent orders (last 5)
+        setRecentOrders(orders.slice(0, 5));
+      }
     } catch (error) {
-      console.error("Failed to fetch stats:", error);
+      console.error("Failed to fetch dashboard data:", error);
     } finally {
       setLoading(false);
     }
   };
 
+  const getStatusColor = (status: string) => {
+    const colors: Record<string, string> = {
+      pending: 'bg-yellow-100 text-yellow-800',
+      confirmed: 'bg-blue-100 text-blue-800',
+      'in-progress': 'bg-purple-100 text-purple-800',
+      completed: 'bg-green-100 text-green-800',
+      cancelled: 'bg-red-100 text-red-800',
+    };
+    return colors[status] || 'bg-gray-100 text-gray-800';
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-lg">Loading...</div>
+        <div className="text-lg">Loading dashboard...</div>
       </div>
     );
   }
 
   return (
     <div>
+      {/* Welcome Section */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900">Seller Dashboard</h1>
         <p className="text-gray-600 mt-2">
-          Manage your products and track your sales performance
+          Manage your photography services and track your business performance
         </p>
       </div>
 
-      {/* Stats Grid */}
+      {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <StatCard
-          icon={<Camera className="text-purple-600" size={28} />}
-          title="Total Products"
-          value={stats.totalProducts}
-          bgColor="bg-purple-50"
-        />
-        <StatCard
-          icon={<ShoppingBag className="text-blue-600" size={28} />}
-          title="Total Orders"
-          value={stats.totalOrders}
-          bgColor="bg-blue-50"
-        />
-        <StatCard
-          icon={<DollarSign className="text-green-600" size={28} />}
-          title="Total Earnings"
-          value={`$${stats.totalEarnings.toLocaleString()}`}
-          bgColor="bg-green-50"
-        />
-        <StatCard
-          icon={<TrendingUp className="text-orange-600" size={28} />}
-          title="Pending Orders"
-          value={stats.pendingOrders}
-          bgColor="bg-orange-50"
-        />
-      </div>
-
-      {/* Secondary Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center space-x-3 mb-2">
-            <Eye className="text-indigo-600" size={24} />
-            <h3 className="text-gray-600 font-medium">Profile Views</h3>
+        {/* Total Revenue */}
+        <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-lg shadow-lg p-6 text-white">
+          <div className="flex items-center justify-between mb-4">
+            <DollarSign size={32} />
+            <TrendingUp size={24} className="opacity-75" />
           </div>
-          <p className="text-2xl font-bold text-gray-900">{stats.profileViews}</p>
-          <p className="text-sm text-green-600 mt-1">+12.5% this week</p>
+          <p className="text-green-100 text-sm font-medium mb-1">Total Revenue</p>
+          <p className="text-4xl font-bold">${stats.totalRevenue.toFixed(0)}</p>
+          <p className="text-sm text-green-100 mt-2">
+            ${stats.monthlyRevenue.toFixed(0)} this month
+          </p>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center space-x-3 mb-2">
-            <Star className="text-yellow-500" size={24} />
-            <h3 className="text-gray-600 font-medium">Average Rating</h3>
+        {/* Total Orders */}
+        <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg shadow-lg p-6 text-white">
+          <div className="flex items-center justify-between mb-4">
+            <ShoppingBag size={32} />
+            <Package size={24} className="opacity-75" />
           </div>
-          <p className="text-2xl font-bold text-gray-900">{stats.averageRating.toFixed(1)}</p>
-          <p className="text-sm text-gray-500 mt-1">Based on {stats.completedOrders} reviews</p>
+          <p className="text-blue-100 text-sm font-medium mb-1">Total Orders</p>
+          <p className="text-4xl font-bold">{stats.totalOrders}</p>
+          <Link href="/seller/orders" className="text-sm text-blue-100 hover:text-white mt-2 inline-block">
+            View all orders →
+          </Link>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center space-x-3 mb-2">
-            <ShoppingBag className="text-green-600" size={24} />
-            <h3 className="text-gray-600 font-medium">Completed Orders</h3>
+        {/* Pending Orders */}
+        <div className="bg-gradient-to-br from-yellow-500 to-yellow-600 rounded-lg shadow-lg p-6 text-white">
+          <div className="flex items-center justify-between mb-4">
+            <Clock size={32} />
+            {stats.pendingOrders > 0 && (
+              <div className="w-3 h-3 bg-white rounded-full animate-pulse"></div>
+            )}
           </div>
-          <p className="text-2xl font-bold text-gray-900">{stats.completedOrders}</p>
-          <p className="text-sm text-green-600 mt-1">89.7% completion rate</p>
+          <p className="text-yellow-100 text-sm font-medium mb-1">Pending Orders</p>
+          <p className="text-4xl font-bold">{stats.pendingOrders}</p>
+          <Link href="/seller/orders?status=pending" className="text-sm text-yellow-100 hover:text-white mt-2 inline-block">
+            Review orders →
+          </Link>
+        </div>
+
+        {/* Active Products */}
+        <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg shadow-lg p-6 text-white">
+          <div className="flex items-center justify-between mb-4">
+            <Camera size={32} />
+            <Package size={24} className="opacity-75" />
+          </div>
+          <p className="text-purple-100 text-sm font-medium mb-1">Active Products</p>
+          <p className="text-4xl font-bold">{stats.activeProducts}</p>
+          <p className="text-sm text-purple-100 mt-2">
+            {stats.totalProducts} total products
+          </p>
         </div>
       </div>
 
       {/* Quick Actions */}
-      <div className="bg-gradient-to-r from-purple-500 to-pink-600 rounded-lg p-8 mb-8 text-white">
-        <h2 className="text-2xl font-bold mb-4">Grow Your Photography Business</h2>
-        <p className="mb-6 text-purple-50">
-          Add new products to attract more customers
-        </p>
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <Link
           href="/seller/add-product"
-          className="inline-flex items-center space-x-2 bg-white text-purple-600 px-6 py-3 rounded-lg font-medium hover:bg-purple-50 transition-colors"
+          className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow p-6 group"
         >
-          <PlusCircle size={20} />
-          <span>Add New Product</span>
+          <div className="flex flex-col items-center text-center">
+            <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center group-hover:bg-purple-200 transition-colors mb-3">
+              <Camera className="text-purple-600" size={24} />
+            </div>
+            <h3 className="font-semibold text-gray-900 mb-1">Add Product</h3>
+            <p className="text-sm text-gray-600">List new service</p>
+          </div>
+        </Link>
+
+        <Link
+          href="/seller/products"
+          className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow p-6 group"
+        >
+          <div className="flex flex-col items-center text-center">
+            <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center group-hover:bg-blue-200 transition-colors mb-3">
+              <Package className="text-blue-600" size={24} />
+            </div>
+            <h3 className="font-semibold text-gray-900 mb-1">My Products</h3>
+            <p className="text-sm text-gray-600">{stats.totalProducts} products</p>
+          </div>
+        </Link>
+
+        <Link
+          href="/seller/orders"
+          className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow p-6 group"
+        >
+          <div className="flex flex-col items-center text-center">
+            <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center group-hover:bg-green-200 transition-colors mb-3 relative">
+              <ShoppingBag className="text-green-600" size={24} />
+              {stats.pendingOrders > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                  {stats.pendingOrders}
+                </span>
+              )}
+            </div>
+            <h3 className="font-semibold text-gray-900 mb-1">Orders</h3>
+            <p className="text-sm text-gray-600">{stats.pendingOrders} pending</p>
+          </div>
+        </Link>
+
+        <Link
+          href="/seller/settings"
+          className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow p-6 group"
+        >
+          <div className="flex flex-col items-center text-center">
+            <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center group-hover:bg-gray-200 transition-colors mb-3">
+              <Eye className="text-gray-600" size={24} />
+            </div>
+            <h3 className="font-semibold text-gray-900 mb-1">Profile</h3>
+            <p className="text-sm text-gray-600">Manage profile</p>
+          </div>
         </Link>
       </div>
+
+      {/* Alerts */}
+      {stats.pendingOrders > 0 && (
+        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-8">
+          <div className="flex items-center">
+            <AlertCircle className="text-yellow-600 mr-3" size={24} />
+            <div>
+              <p className="font-semibold text-yellow-900">
+                You have {stats.pendingOrders} pending order{stats.pendingOrders > 1 ? 's' : ''}
+              </p>
+              <p className="text-sm text-yellow-700">
+                Review and accept orders to start earning
+              </p>
+            </div>
+            <Link
+              href="/seller/orders?status=pending"
+              className="ml-auto bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 transition-colors text-sm font-medium"
+            >
+              Review Orders
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* Recent Orders */}
-      <div className="bg-white rounded-lg shadow p-6 mb-8">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold">Recent Orders</h2>
-          <Link
-            href="/seller/orders"
-            className="text-purple-600 hover:underline text-sm font-medium"
-          >
-            View All Orders
-          </Link>
+      <div className="bg-white rounded-lg shadow">
+        <div className="p-6 border-b">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-bold text-gray-900">Recent Orders</h2>
+            <Link href="/seller/orders" className="text-purple-600 hover:underline text-sm">
+              View all
+            </Link>
+          </div>
         </div>
-        <div className="space-y-4">
-          <OrderItem 
-            orderId="ORD-456"
-            buyer="Emma Wilson"
-            product="Wedding Photography Package"
-            amount={1200}
-            status="pending"
-            date="June 2, 2025"
-          />
-          <OrderItem 
-            orderId="ORD-455"
-            buyer="Michael Brown"
-            product="Portrait Session - Premium"
-            amount={450}
-            status="in-progress"
-            date="June 1, 2025"
-          />
-          <OrderItem 
-            orderId="ORD-454"
-            buyer="Sarah Johnson"
-            product="Event Photography"
-            amount={680}
-            status="completed"
-            date="May 28, 2025"
-          />
-        </div>
-      </div>
 
-      {/* Top Products */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold">Top Selling Products</h2>
-          <Link
-            href="/seller/products"
-            className="text-purple-600 hover:underline text-sm font-medium"
-          >
-            Manage Products
-          </Link>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <ProductCard 
-            name="Wedding Photography"
-            sales={32}
-            revenue={38400}
-            image="📸"
-          />
-          <ProductCard 
-            name="Portrait Session"
-            sales={28}
-            revenue={12600}
-            image="🎭"
-          />
-          <ProductCard 
-            name="Event Coverage"
-            sales={18}
-            revenue={14400}
-            image="🎉"
-          />
-        </div>
-      </div>
-    </div>
-  );
-}
+        {recentOrders.length === 0 ? (
+          <div className="p-12 text-center">
+            <ShoppingBag size={48} className="mx-auto text-gray-300 mb-4" />
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">No orders yet</h3>
+            <p className="text-gray-600 mb-6">Start by adding your photography services</p>
+            <Link
+              href="/seller/add-product"
+              className="inline-block bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 transition-colors"
+            >
+              Add Your First Product
+            </Link>
+          </div>
+        ) : (
+          <div className="divide-y">
+            {recentOrders.map((order) => (
+              <div key={order._id} className="p-6 hover:bg-gray-50 transition-colors">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center space-x-3">
+                    <h3 className="font-semibold text-gray-900">
+                      Order #{order.orderId}
+                    </h3>
+                    <span className={`px-3 py-1 rounded-full text-xs font-medium capitalize ${getStatusColor(order.status)}`}>
+                      {order.status.replace('-', ' ')}
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-lg font-bold text-gray-900">
+                      ${order.totalAmount.toFixed(2)}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {new Date(order.createdAt).toLocaleDateString()}
+                    </p>
+                  </div>
+                </div>
 
-function StatCard({ icon, title, value, bgColor }: any) {
-  return (
-    <div className={`${bgColor} rounded-lg p-6 border border-gray-200`}>
-      <div className="flex items-center space-x-4 mb-3">
-        <div className="p-3 bg-white rounded-lg shadow-sm">
-          {icon}
-        </div>
-      </div>
-      <h3 className="text-gray-600 text-sm font-medium mb-1">{title}</h3>
-      <p className="text-3xl font-bold text-gray-900">{value}</p>
-    </div>
-  );
-}
+                <div className="mb-3">
+                  <p className="text-sm text-gray-600">
+                    Customer: <span className="font-medium text-gray-900">{order.buyer.name}</span>
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    {order.items.length} item{order.items.length > 1 ? 's' : ''}: {order.items[0]?.product.title}
+                    {order.items.length > 1 && ` and ${order.items.length - 1} more`}
+                  </p>
+                </div>
 
-function OrderItem({ orderId, buyer, product, amount, status, date }: any) {
-  const statusColors = {
-    pending: "bg-yellow-100 text-yellow-800",
-    completed: "bg-green-100 text-green-800",
-    "in-progress": "bg-blue-100 text-blue-800",
-    cancelled: "bg-red-100 text-red-800",
-  };
-
-  return (
-    <div className="flex items-center justify-between py-4 border-b last:border-0">
-      <div className="flex-1">
-        <div className="flex items-center space-x-3 mb-1">
-          <p className="font-medium text-gray-900">{orderId}</p>
-          <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColors[status as keyof typeof statusColors]}`}>
-            {status}
-          </span>
-        </div>
-        <p className="text-sm text-gray-600">{product}</p>
-        <p className="text-sm text-gray-500">Customer: {buyer} • {date}</p>
-      </div>
-      <div className="text-right">
-        <p className="text-lg font-bold text-gray-900">${amount}</p>
-        <Link
-          href={`/seller/orders/${orderId}`}
-          className="text-sm text-purple-600 hover:underline"
-        >
-          Manage Order
-        </Link>
-      </div>
-    </div>
-  );
-}
-
-function ProductCard({ name, sales, revenue, image }: any) {
-  return (
-    <div className="border rounded-lg p-4 hover:shadow-md transition-shadow">
-      <div className="text-4xl mb-3">{image}</div>
-      <h3 className="font-semibold text-gray-900 mb-2">{name}</h3>
-      <div className="space-y-1">
-        <p className="text-sm text-gray-600">{sales} sales</p>
-        <p className="text-lg font-bold text-green-600">${revenue.toLocaleString()}</p>
+                <Link
+                  href={`/seller/orders/${order._id}`}
+                  className="text-purple-600 hover:underline text-sm font-medium inline-flex items-center space-x-1"
+                >
+                  <span>View Details</span>
+                  <Eye size={14} />
+                </Link>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
